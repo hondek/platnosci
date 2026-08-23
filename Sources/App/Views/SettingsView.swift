@@ -146,7 +146,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 bullet("Plakietka na ikonie pokazuje liczbę niezapłaconych płatności i nie da się jej zamknąć — znika, kiedy odhaczysz wszystko.")
                 bullet("Powiadomienia wracają do trzech razy dziennie przez trzy tygodnie, dopóki nie oznaczysz płatności.")
-                bullet("Prosto z powiadomienia możesz nacisnąć „Zapłacone" albo „Przypomnij za godzinę", bez wchodzenia do aplikacji.")
+                bullet("Prosto z powiadomienia możesz nacisnąć Zapłacone albo Przypomnij za godzinę, bez wchodzenia do aplikacji.")
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
