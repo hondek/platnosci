@@ -1,0 +1,94 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: "Wariant projektu (widget wymaga platnego konta Apple)"
+        required: true
+        default: project.yml
+        type: choice
+        options:
+          - project.yml
+          - project.widget.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SPEC: ${{ github.event.inputs.spec || 'project.yml' }}
+
+jobs:
+  test:
+    name: Testy logiki
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zainstaluj XcodeGen
+        run: brew install xcodegen
+
+      - name: Wygeneruj projekt
+        run: xcodegen generate --spec project.yml
+
+      - name: Uruchom testy
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Platnosci.xcodeproj \
+            -scheme PlatnosciTests \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO
+
+  build:
+    name: Niepodpisany IPA
+    runs-on: macos-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wersja Xcode
+        run: xcodebuild -version
+
+      - name: Zainstaluj XcodeGen
+        run: brew install xcodegen
+
+      - name: Wygeneruj projekt
+        run: xcodegen generate --spec "$SPEC"
+
+      - name: Zarchiwizuj bez podpisu
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Platnosci.xcodeproj \
+            -scheme Platnosci \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Platnosci.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Spakuj do IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="build/Platnosci.xcarchive/Products/Applications/Platnosci.app"
+          test -d "$APP_PATH" || { echo "Brak .app w archiwum"; exit 1; }
+          rm -rf build/Payload
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          (cd build && zip -qry Platnosci.ipa Payload)
+          ls -lh build/Platnosci.ipa
+
+      - name: Wystaw IPA jako artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: Platnosci-ipa
+          path: build/Platnosci.ipa
+          if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,51 @@
+# Wariant z widgetem na ekran gowny i ekran blokady.
+#
+# UWAGA: ten wariant WYMAGA platnego konta Apple Developer (99 USD/rok).
+# Widget jest osobnym procesem i moze czytac dane aplikacji tylko przez
+# App Groups, a darmowe Apple ID (Personal Team) nie dostaje tego uprawnienia.
+# Przy podpisywaniu darmowym certyfikatem instalacja sie nie powiedzie.
+#
+# Uzycie: xcodegen generate --spec project.widget.yml
+
+include:
+  - project.yml
+
+targets:
+  Platnosci:
+    entitlements:
+      path: Sources/App/Platnosci.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.example.platnosci
+    settings:
+      base:
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: APP_GROUP_ENABLED
+    dependencies:
+      - target: PlatnosciWidget
+        embed: true
+
+  PlatnosciWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Sources/Shared
+      - path: Sources/Widget
+    entitlements:
+      path: Sources/Widget/PlatnosciWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.example.platnosci
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.platnosci.widget
+        PRODUCT_NAME: PlatnosciWidget
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: APP_GROUP_ENABLED
+        TARGETED_DEVICE_FAMILY: "1,2"
+    info:
+      path: Sources/Widget/Info.plist
+      properties:
+        CFBundleDisplayName: Płatności
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension

@@ -1,0 +1,80 @@
+name: Platnosci
+
+options:
+  bundleIdPrefix: com.example
+  createIntermediateGroups: true
+  developmentLanguage: pl
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "13.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+targets:
+  Platnosci:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/Shared
+      - path: Sources/App
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.platnosci
+        PRODUCT_NAME: Platnosci
+        TARGETED_DEVICE_FAMILY: "1,2"
+    info:
+      path: Sources/App/Info.plist
+      properties:
+        CFBundleDisplayName: Płatności
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Pozwala systemowi budzić aplikację w tle, żeby przesuwała okno
+        # zaplanowanych przypomnień. Sam klucz w Info.plist wystarcza —
+        # nie jest to uprawnienie podpisywane przez Apple, więc działa
+        # także przy instalacji darmowym certyfikatem.
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.example.platnosci.refresh
+
+  PlatnosciTests:
+    type: bundle.unit-test
+    platform: macOS
+    # Testy kompilują pliki z Sources/Shared bezpośrednio, więc nie potrzebują
+    # aplikacji-hosta ani symulatora iOS. To dlatego cała logika domenowa jest
+    # oparta wyłącznie na Foundation.
+    sources:
+      - path: Sources/Shared
+      - path: Tests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.platnosci.tests
+
+schemes:
+  Platnosci:
+    build:
+      targets:
+        Platnosci: all
+
+  PlatnosciTests:
+    build:
+      targets:
+        PlatnosciTests: [test]
+    test:
+      targets:
+        - PlatnosciTests

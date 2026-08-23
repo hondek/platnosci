@@ -1,0 +1,17 @@
+# Generowane przez XcodeGen - nie trzymamy w repo
+*.xcodeproj
+Sources/App/Info.plist
+Sources/Widget/Info.plist
+Sources/App/Platnosci.entitlements
+Sources/Widget/PlatnosciWidget.entitlements
+
+# Wyniki budowania
+build/
+DerivedData/
+*.ipa
+*.xcarchive
+
+# Xcode / macOS
+xcuserdata/
+*.xcworkspace/xcuserdata/
+.DS_Store
