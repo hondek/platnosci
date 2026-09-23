@@ -28,7 +28,7 @@ struct ChoreSlot: Hashable, Sendable, Identifiable {
 
 /// Adres wpisu w Przypomnieniach. Po nim rozpoznajemy nasze rekordy przy synchronizacji.
 enum ReminderLink {
-    static let scheme = "platnosci"
+    static let scheme = "hondek"
 
     static func payment(id: UUID, period: MonthKey) -> String {
         "pay/\(id.uuidString)/\(period.id)"

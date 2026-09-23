@@ -16,7 +16,7 @@ targets:
       path: Sources/App/Platnosci.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.example.platnosci
+          - group.com.hondek.platnosci
     settings:
       base:
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: APP_GROUP_ENABLED
@@ -34,10 +34,10 @@ targets:
       path: Sources/Widget/PlatnosciWidget.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.example.platnosci
+          - group.com.hondek.platnosci
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.platnosci.widget
+        PRODUCT_BUNDLE_IDENTIFIER: com.hondek.platnosci.widget
         PRODUCT_NAME: PlatnosciWidget
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: APP_GROUP_ENABLED
         TARGETED_DEVICE_FAMILY: "1,2"

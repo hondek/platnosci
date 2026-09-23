@@ -8,7 +8,7 @@ import Foundation
 /// prywatnym katalogu aplikacji. Aplikacja działa identycznie w obu wariantach —
 /// różnica dotyczy wyłącznie widgetu.
 enum StorageLocation {
-    static let appGroupIdentifier = "group.com.example.platnosci"
+    static let appGroupIdentifier = "group.com.hondek.platnosci"
     static let fileName = "payments.json"
 
     static var isUsingSharedContainer: Bool {

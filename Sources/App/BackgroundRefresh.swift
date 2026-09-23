@@ -9,7 +9,7 @@ import Foundation
 /// przesuwać okno zaplanowanych powiadomień do przodu, więc przypomnienia nie
 /// wygasają po wyczerpaniu zaplanowanej puli.
 enum BackgroundRefresh {
-    static let taskIdentifier = "com.example.platnosci.refresh"
+    static let taskIdentifier = "com.hondek.platnosci.refresh"
 
     /// Musi zostać wywołane przed zakończeniem uruchamiania aplikacji,
     /// inaczej system zgłasza wyjątek.
