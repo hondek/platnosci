@@ -30,7 +30,8 @@ final class AppServices {
         self.notifications = notifications
         self.store = PaymentStore(
             repository: FilePaymentRepository(),
-            notifications: notifications
+            notifications: notifications,
+            reminders: RemindersService()
         )
     }
 

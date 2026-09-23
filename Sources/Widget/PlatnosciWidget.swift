@@ -62,13 +62,14 @@ struct UnpaidProvider: TimelineProvider {
 
         let calendar = Calendar.current
         let period = MonthKey(date: Date(), calendar: calendar)
+        let outgoing = snapshot.payments.filter { $0.kind == .outgoing }
         let unpaid = PaymentsEngine.unpaid(
-            payments: snapshot.payments,
+            payments: outgoing,
             period: period,
             entries: snapshot.entries
         )
         let summary = PaymentsEngine.summary(
-            payments: snapshot.payments,
+            payments: outgoing,
             period: period,
             entries: snapshot.entries
         )

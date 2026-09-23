@@ -35,6 +35,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        NSRemindersFullAccessUsageDescription: "Aplikacja zapisuje płatności, leki i plan lekcji w aplikacji Przypomnienia."
+        NSRemindersUsageDescription: "Aplikacja zapisuje płatności, leki i plan lekcji w aplikacji Przypomnienia."
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

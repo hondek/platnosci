@@ -70,7 +70,7 @@ enum PaymentsEngine {
 
         guard let due = period.date(
             day: payment.dueDay,
-            time: payment.reminderTime,
+            time: payment.effectiveTimes[0],
             calendar: calendar
         ) else {
             return .upcoming(due: now)
@@ -143,9 +143,15 @@ enum PaymentsEngine {
     }
 
     /// Ile pieniędzy przeszło przez aplikację w danym roku.
-    static func yearlyTotal(year: Int, entries: [PaymentEntry]) -> Money {
+    static func yearlyTotal(
+        year: Int,
+        entries: [PaymentEntry],
+        kind: LedgerKind? = nil
+    ) -> Money {
         entries
-            .filter { $0.period.year == year }
+            .filter { entry in
+                entry.period.year == year && (kind == nil || entry.kind == kind)
+            }
             .map(\.amountPaid)
             .total()
     }

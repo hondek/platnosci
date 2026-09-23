@@ -111,9 +111,15 @@ final class PersistenceTests: XCTestCase {
         XCTAssertEqual(payment.dueDay, 10)
         XCTAssertEqual(payment.reminderTime, .morning)
         XCTAssertEqual(payment.intensity, .persistent)
+        XCTAssertEqual(payment.kind, .outgoing)
+        XCTAssertEqual(payment.cadence, .monthly)
+        XCTAssertEqual(payment.reminderTimes, [.morning])
         XCTAssertTrue(payment.isActive)
         XCTAssertEqual(payment.note, "")
         XCTAssertEqual(snapshot.settings, .default)
+        XCTAssertTrue(snapshot.medicationGroups.isEmpty)
+        XCTAssertTrue(snapshot.lessonPlans.isEmpty)
+        XCTAssertTrue(snapshot.occurrenceChecks.isEmpty)
     }
 
     func testOverwritingKeepsFileValid() throws {

@@ -24,6 +24,16 @@ struct MonthKey: Hashable, Comparable, Codable, Sendable, Identifiable {
         "\(year)-\(String(format: "%02d", month))"
     }
 
+    init?(parsing id: String) {
+        let parts = id.split(separator: "-")
+        guard parts.count == 2,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              (1...12).contains(month)
+        else { return nil }
+        self.init(year: year, month: month)
+    }
+
     static func < (lhs: MonthKey, rhs: MonthKey) -> Bool {
         (lhs.year, lhs.month) < (rhs.year, rhs.month)
     }
@@ -75,8 +85,60 @@ struct MonthKey: Hashable, Comparable, Codable, Sendable, Identifiable {
     }
 }
 
+/// Konkretny dzień, używany przy lekach i tygodniowych przypomnieniach.
+struct DayKey: Hashable, Codable, Sendable, Comparable {
+    var year: Int
+    var month: Int
+    var day: Int
+
+    init(year: Int, month: Int, day: Int) {
+        self.year = year
+        self.month = month
+        self.day = day
+    }
+
+    init(date: Date, calendar: Calendar) {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        self.year = components.year ?? 1970
+        self.month = components.month ?? 1
+        self.day = components.day ?? 1
+    }
+
+    init?(parsing id: String) {
+        let parts = id.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2])
+        else { return nil }
+        self.init(year: year, month: month, day: day)
+    }
+
+    var id: String {
+        String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    static func < (lhs: DayKey, rhs: DayKey) -> Bool {
+        (lhs.year, lhs.month, lhs.day) < (rhs.year, rhs.month, rhs.day)
+    }
+
+    func date(time: TimeOfDay, calendar: Calendar) -> Date? {
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = time.hour
+        components.minute = time.minute
+        return calendar.date(from: components)
+    }
+
+    func startOfDay(calendar: Calendar) -> Date? {
+        date(time: TimeOfDay(hour: 0, minute: 0), calendar: calendar)
+    }
+}
+
 /// Godzina i minuta bez daty.
-struct TimeOfDay: Hashable, Codable, Sendable {
+struct TimeOfDay: Hashable, Comparable, Codable, Sendable {
     var hour: Int
     var minute: Int
 
@@ -89,5 +151,9 @@ struct TimeOfDay: Hashable, Codable, Sendable {
 
     var formatted: String {
         String(format: "%02d:%02d", hour, minute)
+    }
+
+    static func < (lhs: TimeOfDay, rhs: TimeOfDay) -> Bool {
+        (lhs.hour, lhs.minute) < (rhs.hour, rhs.minute)
     }
 }

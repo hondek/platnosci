@@ -90,6 +90,18 @@ final class NotificationService {
         try? await center.setBadgeCount(max(count, 0))
     }
 
+    /// Kasuje stare, lokalne powiadomienia tej aplikacji. Terminy żyją teraz
+    /// w aplikacji Przypomnienia, więc zostawienie obu kanałów dublowałoby alarmy.
+    func retireScheduledReminders() async {
+        let pending = await center.pendingNotificationRequests()
+        let identifiers = pending.map(\.identifier).filter { identifier in
+            identifier.hasPrefix(ReminderPlanner.identifierPrefix + ".")
+                || identifier.hasPrefix(Self.snoozeIdentifierPrefix + ".")
+        }
+        guard !identifiers.isEmpty else { return }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+
     func pendingReminderCount() async -> Int {
         await center.pendingNotificationRequests()
             .filter { $0.identifier.hasPrefix(ReminderPlanner.identifierPrefix + ".") }

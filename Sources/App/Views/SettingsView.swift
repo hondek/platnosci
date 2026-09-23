@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import UserNotifications
 
 struct SettingsView: View {
     @Environment(PaymentStore.self) private var store
@@ -19,9 +18,9 @@ struct SettingsView: View {
         .sheet(item: $editorTarget) { target in
             switch target {
             case .new:
-                PaymentEditorView(payment: nil)
+                PaymentEditorView(payment: nil, kind: .outgoing)
             case .existing(let payment):
-                PaymentEditorView(payment: payment)
+                PaymentEditorView(payment: payment, kind: payment.kind)
             }
         }
     }
@@ -36,7 +35,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(payment.name)
                                 .foregroundStyle(.primary)
-                            Text(payment.amount.formatted(currencyCode: store.currencyCode))
+                            Text(payment.amount.isZero ? payment.kind.boardTitle : payment.amount.formatted(currencyCode: store.currencyCode))
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -44,7 +43,7 @@ struct SettingsView: View {
                         Spacer()
 
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text("\(payment.dueDay). dnia, \(payment.reminderTime.formatted)")
+                            Text("\(scheduleLabel(payment)), \(payment.effectiveTimes.map(\.formatted).joined(separator: ", "))")
                             if !payment.isActive {
                                 Text("wyłączona")
                                     .foregroundStyle(.orange)
@@ -56,7 +55,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("Stałe płatności")
+            Text("Pozycje")
         } footer: {
             Text("Dotknij, żeby edytować. Wyłączenie płatności kasuje jej zaplanowane przypomnienia.")
         }
@@ -65,39 +64,39 @@ struct SettingsView: View {
     private var notificationsSection: some View {
         Section {
             HStack {
-                Text("Zgoda na powiadomienia")
+                Text("Dostęp do Przypomnień")
                 Spacer()
-                Text(authorizationLabel)
-                    .foregroundStyle(authorizationColor)
+                Text(remindersAccessLabel)
+                    .foregroundStyle(store.remindersAccessGranted == true ? .green : .orange)
             }
 
-            if store.authorizationStatus == .notDetermined {
-                Button("Poproś o zgodę") {
+            if store.remindersAccessGranted != true {
+                Button("Poproś o dostęp") {
                     Task { await store.requestAuthorization() }
                 }
             }
 
-            if store.authorizationStatus == .denied,
+            if store.remindersAccessGranted == false,
                let settingsURL = URL(string: UIApplication.openSettingsURLString) {
                 Link("Otwórz Ustawienia iOS", destination: settingsURL)
             }
 
             Button {
                 Task {
-                    await store.sendTestNotification()
+                    await store.sendTestReminder()
                     testSent = true
                 }
             } label: {
-                Label("Wyślij powiadomienie testowe", systemImage: "bell.badge")
+                Label("Dodaj testowe przypomnienie", systemImage: "checklist")
             }
 
             if testSent {
-                Text("Powiadomienie przyjdzie w ciągu 15 sekund.")
+                Text("Za minutę pojawi się na liście Płatności w aplikacji Przypomnienia.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("Powiadomienia")
+            Text("Przypomnienia")
         }
     }
 
@@ -105,11 +104,7 @@ struct SettingsView: View {
     /// powiadomień na aplikację warto widzieć, ile ich naprawdę jest.
     private var diagnosticsSection: some View {
         Section {
-            LabeledContent("Uzbrojonych przypomnień", value: "\(store.scheduledReminderCount)")
-            LabeledContent(
-                "Limit systemowy iOS",
-                value: "\(ReminderPlanner.budget) z 64"
-            )
+            LabeledContent("Wpisów w Przypomnieniach", value: "\(store.scheduledReminderCount)")
 
             if let next = store.nextReminderDate {
                 LabeledContent(
@@ -119,8 +114,8 @@ struct SettingsView: View {
             }
 
             LabeledContent(
-                "Niezapłacone w tym miesiącu",
-                value: "\(store.unpaidCountForCurrentPeriod())"
+                "Otwarte w tym miesiącu",
+                value: "\(store.attentionCount())"
             )
 
             LabeledContent(
@@ -140,13 +135,14 @@ struct SettingsView: View {
 
     private var explanationSection: some View {
         Section {
-            Text("iOS nie pozwala przykleić powiadomienia do ekranu na stałe — taki mechanizm w ogóle nie istnieje w systemie. Dlatego przypomnienie działa trzema warstwami:")
+            Text("Każdy termin staje się wpisem w aplikacji Przypomnienia i zostaje tam, dopóki go nie odhaczysz — w tej aplikacji albo bezpośrednio w Przypomnieniach.")
                 .font(.footnote)
 
             VStack(alignment: .leading, spacing: 8) {
-                bullet("Plakietka na ikonie pokazuje liczbę niezapłaconych płatności i nie da się jej zamknąć — znika, kiedy odhaczysz wszystko.")
-                bullet("Powiadomienia wracają do trzech razy dziennie przez trzy tygodnie, dopóki nie oznaczysz płatności.")
-                bullet("Prosto z powiadomienia możesz nacisnąć Zapłacone albo Przypomnij za godzinę, bez wchodzenia do aplikacji.")
+                bullet("Płatności, należności i zwykłe przypomnienia mają osobne listy.")
+                bullet("Godziny ustawiasz sam. Każda godzina to osobny alarm tego samego wpisu.")
+                bullet("Leki (np. grupa LEKARSTWA) odhaczasz codziennie, każdą dawkę o swojej godzinie.")
+                bullet("Plan lekcji, na przykład „Plan lekcji Róża”, dostaje przypomnienie o godzinie rozpoczęcia bloku.")
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -155,30 +151,26 @@ struct SettingsView: View {
         }
     }
 
+    private var remindersAccessLabel: String {
+        switch store.remindersAccessGranted {
+        case .some(true): return "udzielony"
+        case .some(false): return "brak"
+        case .none: return "sprawdzanie"
+        }
+    }
+
+    private func scheduleLabel(_ payment: RecurringPayment) -> String {
+        if payment.kind == .chore, payment.cadence == .weekly {
+            return BoardNaming.weekdayName(payment.weekday ?? 2)
+        }
+        return "\(payment.dueDay). dnia"
+    }
+
     private func bullet(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 6) {
             Text("•")
             Text(text)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var authorizationLabel: String {
-        switch store.authorizationStatus {
-        case .authorized: return "udzielona"
-        case .provisional: return "tymczasowa"
-        case .denied: return "odmowa"
-        case .notDetermined: return "nieustalona"
-        case .ephemeral: return "tymczasowa"
-        @unknown default: return "nieznana"
-        }
-    }
-
-    private var authorizationColor: Color {
-        switch store.authorizationStatus {
-        case .authorized, .provisional: return .green
-        case .denied: return .red
-        default: return .orange
         }
     }
 }

@@ -28,7 +28,7 @@ struct PlatnosciApp: App {
 
     var body: some Scene {
         WindowGroup {
-            DashboardView()
+            RootView()
                 .environment(AppServices.shared.store)
                 .task {
                     await AppServices.shared.store.bootstrap()

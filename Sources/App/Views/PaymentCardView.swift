@@ -3,6 +3,7 @@ import SwiftUI
 struct PaymentCardView: View {
     let payment: RecurringPayment
     let status: PaymentStatus
+    let coversDate: Date?
     let currencyCode: String
     let onMarkPaid: () -> Void
     let onMarkUnpaid: () -> Void
@@ -25,8 +26,6 @@ struct PaymentCardView: View {
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay {
-            // Zaległe płatności dostają obwódkę, żeby były widoczne
-            // jednym spojrzeniem na listę.
             if status.isOverdue {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(.red.opacity(0.5), lineWidth: 2)
@@ -42,8 +41,13 @@ struct PaymentCardView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(payment.name)
                     .font(.title3.bold())
-                Text(payment.amount.formatted(currencyCode: currencyCode))
-                    .font(.headline)
+                if payment.kind.handlesMoney {
+                    Text(payment.amount.formatted(currencyCode: currencyCode))
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+                Text(hoursLine)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
             }
 
@@ -55,19 +59,26 @@ struct PaymentCardView: View {
         }
     }
 
+    private var hoursLine: String {
+        let hours = payment.effectiveTimes.map(\.formatted).joined(separator: ", ")
+        return "Przypomnienia o \(hours)"
+    }
+
     @ViewBuilder
     private var statusSection: some View {
         switch status {
         case .paid(let date, let amount):
             VStack(alignment: .leading, spacing: 10) {
-                Label(
-                    "Zapłacone \(amount.formatted(currencyCode: currencyCode))",
-                    systemImage: "checkmark.circle.fill"
-                )
-                .font(.headline)
-                .foregroundStyle(.green)
+                Label(doneHeadline(amount: amount), systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
 
-                Text(date.formatted(date: .abbreviated, time: .shortened))
+                if let coversDate {
+                    Text("Za \(coversDate.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.subheadline)
+                }
+
+                Text("Oznaczone \(date.formatted(date: .abbreviated, time: .shortened))")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
@@ -78,24 +89,33 @@ struct PaymentCardView: View {
         case .upcoming(let due):
             unpaidSection(
                 headline: "Termin \(due.formatted(date: .abbreviated, time: .omitted))",
-                detail: "Przypomnienie o \(payment.reminderTime.formatted), tryb: \(payment.intensity.title.lowercased()).",
+                detail: listDetail,
                 tint: .secondary
             )
 
-        case .dueToday(let due):
+        case .dueToday:
             unpaidSection(
                 headline: "Termin dzisiaj",
-                detail: "Przypomnienie o \(due.formatted(date: .omitted, time: .shortened)) i dalej, dopóki nie oznaczysz.",
+                detail: listDetail,
                 tint: .orange
             )
 
         case .overdue(_, let days):
             unpaidSection(
                 headline: "Zaległe — \(ReminderPlanner.dayCountPhrase(days)) po terminie",
-                detail: "Przypomnienia wracają, dopóki nie oznaczysz płatności.",
+                detail: "Wpis zostaje na liście „\(payment.kind.reminderListName)”, dopóki go nie odhaczysz.",
                 tint: .red
             )
         }
+    }
+
+    private var listDetail: String {
+        "Trafia na listę „\(payment.kind.reminderListName)” w aplikacji Przypomnienia."
+    }
+
+    private func doneHeadline(amount: Money) -> String {
+        guard payment.kind.handlesMoney else { return payment.kind.doneLabel }
+        return "\(payment.kind.doneLabel) \(amount.formatted(currencyCode: currencyCode))"
     }
 
     private func unpaidSection(
@@ -114,7 +134,7 @@ struct PaymentCardView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Button(action: onMarkPaid) {
-                Label("Oznacz jako zapłacone", systemImage: "checkmark")
+                Label(payment.kind.doneButton, systemImage: "checkmark")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -125,7 +145,7 @@ struct PaymentCardView: View {
     private var iconName: String {
         switch status {
         case .paid: return "checkmark.circle.fill"
-        case .upcoming: return "clock"
+        case .upcoming: return payment.kind == .incoming ? "arrow.down.circle" : "clock"
         case .dueToday: return "exclamationmark.circle.fill"
         case .overdue: return "exclamationmark.triangle.fill"
         }

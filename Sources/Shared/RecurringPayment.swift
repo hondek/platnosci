@@ -62,7 +62,107 @@ enum ReminderIntensity: String, Codable, CaseIterable, Sendable, Identifiable {
     }
 }
 
-/// Stała płatność powtarzająca się co miesiąc.
+/// Czy to rachunek, który płacę, pieniądze do odebrania, czy zwykłe przypomnienie.
+enum LedgerKind: String, Codable, CaseIterable, Sendable, Identifiable {
+    case outgoing
+    case incoming
+    case chore
+
+    var id: String { rawValue }
+
+    var boardTitle: String {
+        switch self {
+        case .outgoing: return "Płatności"
+        case .incoming: return "Należności"
+        case .chore: return "Przypomnienia"
+        }
+    }
+
+    var newItemTitle: String {
+        switch self {
+        case .outgoing: return "Nowa płatność"
+        case .incoming: return "Nowa należność"
+        case .chore: return "Nowe przypomnienie"
+        }
+    }
+
+    var editItemTitle: String {
+        switch self {
+        case .outgoing: return "Edytuj płatność"
+        case .incoming: return "Edytuj należność"
+        case .chore: return "Edytuj przypomnienie"
+        }
+    }
+
+    var doneButton: String {
+        switch self {
+        case .outgoing: return "Oznacz jako zapłacone"
+        case .incoming: return "Oznacz jako odebrane"
+        case .chore: return "Zrobione"
+        }
+    }
+
+    var doneLabel: String {
+        switch self {
+        case .outgoing: return "Zapłacone"
+        case .incoming: return "Odebrane"
+        case .chore: return "Zrobione"
+        }
+    }
+
+    var summaryTitle: String {
+        switch self {
+        case .outgoing: return "Podsumowanie miesiąca"
+        case .incoming: return "Do odebrania w tym miesiącu"
+        case .chore: return "Przypomnienia"
+        }
+    }
+
+    var completeLabel: String {
+        switch self {
+        case .outgoing: return "Wszystko opłacone"
+        case .incoming: return "Wszystko odebrane"
+        case .chore: return "Wszystko zrobione"
+        }
+    }
+
+    var progressNoun: String {
+        switch self {
+        case .outgoing: return "opłaconych"
+        case .incoming: return "odebranych"
+        case .chore: return "zrobionych"
+        }
+    }
+
+    var reminderListName: String {
+        switch self {
+        case .outgoing: return "Płatności"
+        case .incoming: return "Należności"
+        case .chore: return "Przypomnienia"
+        }
+    }
+
+    var handlesMoney: Bool {
+        self != .chore
+    }
+}
+
+/// Jak często wraca pozycja. Płatności są miesięczne, przypomnienie może być tygodniowe.
+enum ItemCadence: String, Codable, CaseIterable, Sendable, Identifiable {
+    case monthly
+    case weekly
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .monthly: return "Co miesiąc"
+        case .weekly: return "Co tydzień"
+        }
+    }
+}
+
+/// Stała płatność, należność albo przypomnienie.
 struct RecurringPayment: Identifiable, Hashable, Codable, Sendable {
     var id: UUID
     var name: String
@@ -74,6 +174,12 @@ struct RecurringPayment: Identifiable, Hashable, Codable, Sendable {
     var intensity: ReminderIntensity
     var isActive: Bool
     var createdAt: Date
+    var kind: LedgerKind
+    var cadence: ItemCadence
+    /// Dzień tygodnia w numeracji kalendarza (1 = niedziela … 7 = sobota). Tylko przy `cadence == .weekly`.
+    var weekday: Int?
+    /// Godziny alarmów. Puste pole uzupełnia dekoder godziną `reminderTime`.
+    var reminderTimes: [TimeOfDay]
 
     init(
         id: UUID = UUID(),
@@ -84,7 +190,11 @@ struct RecurringPayment: Identifiable, Hashable, Codable, Sendable {
         reminderTime: TimeOfDay = .morning,
         intensity: ReminderIntensity = .persistent,
         isActive: Bool = true,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        kind: LedgerKind = .outgoing,
+        cadence: ItemCadence = .monthly,
+        weekday: Int? = nil,
+        reminderTimes: [TimeOfDay]? = nil
     ) {
         self.id = id
         self.name = name
@@ -95,6 +205,24 @@ struct RecurringPayment: Identifiable, Hashable, Codable, Sendable {
         self.intensity = intensity
         self.isActive = isActive
         self.createdAt = createdAt
+        self.kind = kind
+        self.cadence = cadence
+        if let weekday {
+            self.weekday = min(max(weekday, 1), 7)
+        } else {
+            self.weekday = nil
+        }
+        let provided = reminderTimes ?? []
+        let times = (provided.isEmpty ? [reminderTime] : provided).sorted()
+        self.reminderTimes = times
+        self.reminderTime = times[0]
+    }
+
+    /// Godziny, o których ma zadzwonić alarm. Zawsze co najmniej jedna.
+    var effectiveTimes: [TimeOfDay] {
+        let times = reminderTimes.isEmpty ? [reminderTime] : reminderTimes
+        var seen: Set<Int> = []
+        return times.sorted().filter { seen.insert($0.hour * 60 + $0.minute).inserted }
     }
 
     /// Ręczna dekodera z wartościami domyślnymi dla brakujących pól.
@@ -111,6 +239,16 @@ struct RecurringPayment: Identifiable, Hashable, Codable, Sendable {
         intensity = try container.decodeIfPresent(ReminderIntensity.self, forKey: .intensity) ?? .persistent
         isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        kind = try container.decodeIfPresent(LedgerKind.self, forKey: .kind) ?? .outgoing
+        cadence = try container.decodeIfPresent(ItemCadence.self, forKey: .cadence) ?? .monthly
+        if let decodedWeekday = try container.decodeIfPresent(Int.self, forKey: .weekday) {
+            weekday = min(max(decodedWeekday, 1), 7)
+        } else {
+            weekday = nil
+        }
+        let decodedTimes = try container.decodeIfPresent([TimeOfDay].self, forKey: .reminderTimes) ?? []
+        reminderTimes = decodedTimes.isEmpty ? [reminderTime] : decodedTimes.sorted()
+        reminderTime = reminderTimes[0]
     }
 }
 
@@ -130,6 +268,9 @@ struct PaymentEntry: Identifiable, Hashable, Codable, Sendable {
     /// Nazwa z chwili zapłaty, żeby historia przetrwała zmianę nazwy i usunięcie
     /// płatności.
     var paymentName: String
+    /// Dzień, za który jest ta wpłata. Osobno od chwili odhaczenia.
+    var coversDate: Date?
+    var kind: LedgerKind
 
     init(
         id: UUID = UUID(),
@@ -137,7 +278,9 @@ struct PaymentEntry: Identifiable, Hashable, Codable, Sendable {
         period: MonthKey,
         paidAt: Date = Date(),
         amountPaid: Money,
-        paymentName: String
+        paymentName: String,
+        coversDate: Date? = nil,
+        kind: LedgerKind = .outgoing
     ) {
         self.id = id
         self.paymentID = paymentID
@@ -145,6 +288,8 @@ struct PaymentEntry: Identifiable, Hashable, Codable, Sendable {
         self.paidAt = paidAt
         self.amountPaid = amountPaid
         self.paymentName = paymentName
+        self.coversDate = coversDate
+        self.kind = kind
     }
 
     init(from decoder: Decoder) throws {
@@ -155,5 +300,7 @@ struct PaymentEntry: Identifiable, Hashable, Codable, Sendable {
         paidAt = try container.decode(Date.self, forKey: .paidAt)
         amountPaid = try container.decodeIfPresent(Money.self, forKey: .amountPaid) ?? .zero
         paymentName = try container.decodeIfPresent(String.self, forKey: .paymentName) ?? ""
+        coversDate = try container.decodeIfPresent(Date.self, forKey: .coversDate)
+        kind = try container.decodeIfPresent(LedgerKind.self, forKey: .kind) ?? .outgoing
     }
 }

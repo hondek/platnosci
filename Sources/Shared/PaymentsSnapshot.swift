@@ -35,12 +35,18 @@ struct AppSettings: Hashable, Codable, Sendable {
 /// Wersja schematu jest zapisana w pliku, więc przyszła migracja danych jest
 /// możliwa bez zgadywania formatu.
 struct PaymentsSnapshot: Hashable, Codable, Sendable {
-    static let currentSchemaVersion = 1
+    static let currentSchemaVersion = 2
 
     var schemaVersion: Int
     var payments: [RecurringPayment]
     var entries: [PaymentEntry]
     var settings: AppSettings
+    /// Odhaczenia leków i przypomnień niepłatnościowych.
+    var occurrenceChecks: [OccurrenceCheck]
+    var medicationGroups: [MedicationGroup]
+    var medicationDoses: [MedicationDose]
+    var lessonPlans: [LessonPlan]
+    var lessonBlocks: [LessonBlock]
 
     static let empty = PaymentsSnapshot(
         schemaVersion: currentSchemaVersion,
@@ -53,12 +59,22 @@ struct PaymentsSnapshot: Hashable, Codable, Sendable {
         schemaVersion: Int = PaymentsSnapshot.currentSchemaVersion,
         payments: [RecurringPayment],
         entries: [PaymentEntry],
-        settings: AppSettings
+        settings: AppSettings,
+        occurrenceChecks: [OccurrenceCheck] = [],
+        medicationGroups: [MedicationGroup] = [],
+        medicationDoses: [MedicationDose] = [],
+        lessonPlans: [LessonPlan] = [],
+        lessonBlocks: [LessonBlock] = []
     ) {
         self.schemaVersion = schemaVersion
         self.payments = payments
         self.entries = entries
         self.settings = settings
+        self.occurrenceChecks = occurrenceChecks
+        self.medicationGroups = medicationGroups
+        self.medicationDoses = medicationDoses
+        self.lessonPlans = lessonPlans
+        self.lessonBlocks = lessonBlocks
     }
 
     init(from decoder: Decoder) throws {
@@ -67,6 +83,11 @@ struct PaymentsSnapshot: Hashable, Codable, Sendable {
         payments = try container.decodeIfPresent([RecurringPayment].self, forKey: .payments) ?? []
         entries = try container.decodeIfPresent([PaymentEntry].self, forKey: .entries) ?? []
         settings = try container.decodeIfPresent(AppSettings.self, forKey: .settings) ?? .default
+        occurrenceChecks = try container.decodeIfPresent([OccurrenceCheck].self, forKey: .occurrenceChecks) ?? []
+        medicationGroups = try container.decodeIfPresent([MedicationGroup].self, forKey: .medicationGroups) ?? []
+        medicationDoses = try container.decodeIfPresent([MedicationDose].self, forKey: .medicationDoses) ?? []
+        lessonPlans = try container.decodeIfPresent([LessonPlan].self, forKey: .lessonPlans) ?? []
+        lessonBlocks = try container.decodeIfPresent([LessonBlock].self, forKey: .lessonBlocks) ?? []
     }
 
     /// Punkt zaczepienia dla przyszłych migracji. Dziś tylko podnosi numer

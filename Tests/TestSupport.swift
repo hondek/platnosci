@@ -40,7 +40,8 @@ enum TestSupport {
         dueDay: Int = 10,
         hour: Int = 9,
         intensity: ReminderIntensity = .persistent,
-        isActive: Bool = true
+        isActive: Bool = true,
+        kind: LedgerKind = .outgoing
     ) -> RecurringPayment {
         RecurringPayment(
             name: name,
@@ -49,7 +50,8 @@ enum TestSupport {
             reminderTime: TimeOfDay(hour: hour, minute: 0),
             intensity: intensity,
             isActive: isActive,
-            createdAt: referenceDate
+            createdAt: referenceDate,
+            kind: kind
         )
     }
 

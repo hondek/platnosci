@@ -14,11 +14,21 @@ enum PaymentEditorTarget: Identifiable {
     }
 }
 
+private struct PendingMark: Identifiable {
+    let payment: RecurringPayment
+    let period: MonthKey
+    let suggested: Date
+
+    var id: String { "\(payment.id.uuidString)-\(period.id)" }
+}
+
 struct DashboardView: View {
     @Environment(PaymentStore.self) private var store
+    let kind: LedgerKind
 
     @State private var period = MonthKey(date: Date(), calendar: .current)
     @State private var editorTarget: PaymentEditorTarget?
+    @State private var pendingMark: PendingMark?
 
     var body: some View {
         NavigationStack {
@@ -32,31 +42,36 @@ struct DashboardView: View {
                         )
                     }
 
-                    if store.authorizationStatus == .denied {
+                    if store.remindersAccessGranted == false {
                         WarningBanner(
-                            icon: "bell.slash.fill",
+                            icon: "checklist",
                             tint: .orange,
-                            message: "Powiadomienia są wyłączone w Ustawieniach iOS. Bez nich przypomnienia nie zadziałają — zostanie tylko plakietka na ikonie."
+                            message: "Brak dostępu do Przypomnień. Terminy nie trafią do systemowej aplikacji, dopóki nie przyznasz zgody."
                         )
                     }
 
                     monthSwitcher
-                    SummaryCard(summary: store.summary(for: period), currencyCode: store.currencyCode)
+                    SummaryCard(
+                        summary: store.summary(for: period, kind: kind),
+                        currencyCode: store.currencyCode,
+                        kind: kind
+                    )
 
-                    if store.activePayments.isEmpty {
+                    if store.activePayments(of: kind).isEmpty {
                         ContentUnavailableView(
-                            "Brak płatności",
-                            systemImage: "creditcard",
-                            description: Text("Dodaj pierwszą stałą płatność przyciskiem plus.")
+                            "Brak pozycji",
+                            systemImage: kind == .incoming ? "arrow.down.circle" : "creditcard",
+                            description: Text(emptyDescription)
                         )
                         .padding(.top, 32)
                     } else {
-                        ForEach(store.activePayments) { payment in
+                        ForEach(store.activePayments(of: kind)) { payment in
                             PaymentCardView(
                                 payment: payment,
                                 status: store.status(for: payment, period: period),
+                                coversDate: store.entry(for: payment, period: period)?.coversDate,
                                 currencyCode: store.currencyCode,
-                                onMarkPaid: { store.markPaid(payment, period: period) },
+                                onMarkPaid: { beginMark(payment) },
                                 onMarkUnpaid: { store.markUnpaid(payment, period: period) },
                                 onEdit: { editorTarget = .existing(payment) }
                             )
@@ -68,11 +83,11 @@ struct DashboardView: View {
                 .padding()
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Płatności")
+            .navigationTitle(kind.boardTitle)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     NavigationLink {
-                        HistoryView()
+                        HistoryView(kind: kind)
                     } label: {
                         Label("Historia", systemImage: "clock.arrow.circlepath")
                     }
@@ -95,12 +110,39 @@ struct DashboardView: View {
             .sheet(item: $editorTarget) { target in
                 switch target {
                 case .new:
-                    PaymentEditorView(payment: nil)
+                    PaymentEditorView(payment: nil, kind: kind)
                 case .existing(let payment):
-                    PaymentEditorView(payment: payment)
+                    PaymentEditorView(payment: payment, kind: payment.kind)
+                }
+            }
+            .sheet(item: $pendingMark) { pending in
+                CoversDateSheet(
+                    title: "Za kiedy?",
+                    message: "Data, której dotyczy ta pozycja. Osobno od chwili odhaczenia.",
+                    confirmTitle: pending.payment.kind.doneButton,
+                    date: pending.suggested
+                ) { date in
+                    store.markPaid(pending.payment, period: pending.period, coversDate: date)
                 }
             }
         }
+    }
+
+    private var emptyDescription: String {
+        switch kind {
+        case .outgoing: return "Dodaj pierwszą stałą płatność przyciskiem plus."
+        case .incoming: return "Dodaj osobę, która ma Ci oddać pieniądze."
+        case .chore: return "Dodaj przypomnienie, na przykład wystawienie kosza."
+        }
+    }
+
+    private func beginMark(_ payment: RecurringPayment) {
+        let suggested = period.date(
+            day: payment.dueDay,
+            time: payment.effectiveTimes[0],
+            calendar: .current
+        ) ?? Date()
+        pendingMark = PendingMark(payment: payment, period: period, suggested: suggested)
     }
 
     private var monthSwitcher: some View {
@@ -141,17 +183,19 @@ struct DashboardView: View {
         }
     }
 
-    /// Podgląd tego, co faktycznie siedzi w systemie. Dzięki temu widać na oczy,
-    /// że przypomnienia są uzbrojone, zamiast wierzyć na słowo.
     private var reminderFooter: some View {
         VStack(spacing: 4) {
-            Text("Uzbrojonych przypomnień: \(store.scheduledReminderCount)")
+            Text("Wpisów w Przypomnieniach: \(store.scheduledReminderCount)")
             if let next = store.nextReminderDate {
-                Text("Najbliższe: \(next.formatted(date: .abbreviated, time: .shortened))")
+                Text("Najbliższy alarm: \(next.formatted(date: .abbreviated, time: .shortened))")
+            }
+            if let remindersError = store.remindersError {
+                Text(remindersError)
             }
         }
         .font(.footnote)
         .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
         .padding(.top, 8)
     }
 }
@@ -159,15 +203,16 @@ struct DashboardView: View {
 private struct SummaryCard: View {
     let summary: PeriodSummary
     let currencyCode: String
+    let kind: LedgerKind
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Podsumowanie miesiąca")
+                Text(kind.summaryTitle)
                     .font(.headline)
                 Spacer()
                 if summary.isComplete {
-                    Label("Wszystko opłacone", systemImage: "checkmark.seal.fill")
+                    Label(kind.completeLabel, systemImage: "checkmark.seal.fill")
                         .font(.caption.bold())
                         .foregroundStyle(.green)
                 }
@@ -184,7 +229,7 @@ private struct SummaryCard: View {
                 .tint(summary.isComplete ? .green : .accentColor)
 
             HStack {
-                Text("\(summary.paidCount) z \(summary.totalCount) opłaconych")
+                Text("\(summary.paidCount) z \(summary.totalCount) \(kind.progressNoun)")
                 Spacer()
                 if !summary.remaining.isZero {
                     Text("zostało \(summary.remaining.formatted(currencyCode: currencyCode))")

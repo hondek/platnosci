@@ -5,16 +5,21 @@ import SwiftUI
 /// nie przepisuje tego, co zapłaciłeś rok temu.
 struct HistoryView: View {
     @Environment(PaymentStore.self) private var store
+    let kind: LedgerKind
 
     private let monthsBack = 36
 
+    private var visibleEntries: [PaymentEntry] {
+        store.entries.filter { $0.kind == kind }
+    }
+
     var body: some View {
         List {
-            if store.entries.isEmpty {
+            if visibleEntries.isEmpty {
                 ContentUnavailableView(
                     "Brak historii",
                     systemImage: "clock.arrow.circlepath",
-                    description: Text("Oznacz pierwszą płatność jako zapłaconą.")
+                    description: Text("Oznacz pierwszą pozycję jako załatwioną.")
                 )
             } else {
                 ForEach(periodsWithEntries, id: \.self) { period in
@@ -22,9 +27,14 @@ struct HistoryView: View {
                         ForEach(entries(in: period)) { entry in
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(entry.paymentName.isEmpty ? "Płatność" : entry.paymentName)
+                                    Text(entry.paymentName.isEmpty ? kind.boardTitle : entry.paymentName)
                                         .font(.body)
-                                    Text(entry.paidAt.formatted(date: .abbreviated, time: .shortened))
+                                    if let coversDate = entry.coversDate {
+                                        Text("Za \(coversDate.formatted(date: .abbreviated, time: .omitted))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Text("Oznaczone \(entry.paidAt.formatted(date: .abbreviated, time: .shortened))")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -41,7 +51,7 @@ struct HistoryView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    YearlyTotalsView()
+                    YearlyTotalsView(kind: kind)
                 } label: {
                     Label("Podsumowania", systemImage: "chart.bar")
                 }
@@ -59,13 +69,13 @@ struct HistoryView: View {
                 count: monthsBack
             )
         )
-        return Set(store.entries.map(\.period))
+        return Set(visibleEntries.map(\.period))
             .intersection(window)
             .sorted(by: >)
     }
 
     private func entries(in period: MonthKey) -> [PaymentEntry] {
-        store.entries
+        visibleEntries
             .filter { $0.period == period }
             .sorted { $0.paidAt < $1.paidAt }
     }
@@ -73,6 +83,7 @@ struct HistoryView: View {
 
 private struct YearlyTotalsView: View {
     @Environment(PaymentStore.self) private var store
+    let kind: LedgerKind
 
     var body: some View {
         List {
@@ -82,7 +93,7 @@ private struct YearlyTotalsView: View {
                     Spacer()
                     Text(
                         PaymentsEngine
-                            .yearlyTotal(year: year, entries: store.entries)
+                            .yearlyTotal(year: year, entries: store.entries, kind: kind)
                             .formatted(currencyCode: store.currencyCode)
                     )
                     .font(.body.monospacedDigit().bold())
@@ -93,6 +104,6 @@ private struct YearlyTotalsView: View {
     }
 
     private var years: [Int] {
-        Set(store.entries.map(\.period.year)).sorted(by: >)
+        Set(store.entries.filter { $0.kind == kind }.map(\.period.year)).sorted(by: >)
     }
 }
