@@ -104,6 +104,8 @@ struct SettingsView: View {
     /// powiadomień na aplikację warto widzieć, ile ich naprawdę jest.
     private var diagnosticsSection: some View {
         Section {
+            LabeledContent("Wersja", value: appVersion)
+
             LabeledContent("Wpisów w Przypomnieniach", value: "\(store.scheduledReminderCount)")
 
             if let next = store.nextReminderDate {
@@ -149,6 +151,12 @@ struct SettingsView: View {
         } header: {
             Text("Jak działa przypominanie")
         }
+    }
+
+    private var appVersion: String {
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "\(short) (\(build))"
     }
 
     private var remindersAccessLabel: String {
